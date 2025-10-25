@@ -1,0 +1,721 @@
+  --// Lolsense - Kill All + Highlight ESP + RGB Mode
+
+-- Load Compkiller UI
+local Lolsense = loadstring(game:HttpGet("https://raw.githubusercontent.com/4lpaca-pin/CompKiller/refs/heads/main/src/source.luau"))();
+
+-- Create notifications
+local Notifier = Lolsense.newNotify();
+
+-- Create config manager
+local ConfigManager = Lolsense:ConfigManager({
+	Directory = "Lolsense",
+	Config = "Main-Config"
+});
+
+-- Load UI
+Lolsense:Loader("rbxassetid://120245531583106", 2.5).yield();
+
+-- Create window
+local Window = Lolsense.new({
+	Name = "LOLSENSE",
+	Keybind = "Insert",
+	Logo = "rbxassetid://120245531583106",
+	Scale = Lolsense.Scale.Window,
+	TextSize = 15,
+});
+
+-- Load notification
+Notifier.new({
+	Title = "Lolsense",
+	Content = "Script loaded successfully! Toggle UI: Insert",
+	Duration = 5,
+	Icon = "rbxassetid://120245531583106"
+});
+
+-- Watermark
+local Watermark = Window:Watermark();
+
+Watermark:AddText({
+	Icon = "user",
+	Text = "Lolsense",
+});
+
+Watermark:AddText({
+	Icon = "clock",
+	Text = Lolsense:GetDate(),
+});
+
+local Time = Watermark:AddText({
+	Icon = "timer",
+	Text = "TIME",
+});
+
+task.spawn(function()
+	while true do task.wait()
+		Time:SetText(Lolsense:GetTimeNow());
+	end
+end)
+
+Watermark:AddText({
+	Icon = "server",
+	Text = Lolsense.Version,
+});
+
+-- Main variables
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local ESPEnabled = false
+local RGBMode = false
+local KillAllSpamEnabled = false
+local KillAllSpamConnection = nil
+local SpamSpeed = 1 -- 1 millisecond by default
+
+-- ESP variables
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "ESP"
+ESPFolder.Parent = game:GetService("CoreGui")
+
+local ESPConnections = {}
+local ESPHighlights = {}
+
+-- Kill All function
+local function KillAllPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+            local hum = player.Character.Humanoid
+            ReplicatedStorage.kill:FireServer(hum, true)
+        end
+    end
+end
+
+-- Kill All spam function
+local function StartKillAllSpam()
+    if KillAllSpamConnection then
+        KillAllSpamConnection:Disconnect()
+    end
+    
+    KillAllSpamConnection = RunService.Heartbeat:Connect(function()
+        if not KillAllSpamEnabled then
+            KillAllSpamConnection:Disconnect()
+            return
+        end
+        KillAllPlayers()
+        -- Add delay based on speed
+        if SpamSpeed > 1 then
+            wait(SpamSpeed / 1000) -- Convert milliseconds to seconds
+        end
+    end)
+end
+
+-- Stop Kill All spam function
+local function StopKillAllSpam()
+    KillAllSpamEnabled = false
+    if KillAllSpamConnection then
+        KillAllSpamConnection:Disconnect()
+        KillAllSpamConnection = nil
+    end
+end
+
+-- Create Highlight ESP function
+local function CreateHighlightESP(player)
+    if ESPConnections[player] then return end
+    
+    local connection
+    connection = player.CharacterAdded:Connect(function(character)
+        task.wait(1)
+        
+        if not ESPEnabled then return end
+        
+        local humanoid = character:WaitForChild("Humanoid")
+        
+        -- Create Highlight for ESP
+        local highlight = Instance.new("Highlight")
+        highlight.Name = player.Name .. "_ESP"
+        highlight.Adornee = character
+        highlight.Parent = ESPFolder
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        
+        -- Wallhack visibility settings
+        highlight.FillTransparency = 0.8  -- Semi-transparent fill
+        highlight.OutlineTransparency = 0  -- Opaque outline
+        
+        -- Color settings
+        if player.Team and LocalPlayer.Team then
+            if player.Team == LocalPlayer.Team then
+                highlight.FillColor = Color3.fromRGB(0, 255, 0)  -- Green for allies
+                highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
+            else
+                highlight.FillColor = Color3.fromRGB(255, 0, 0)  -- Red for enemies
+                highlight.OutlineColor = Color3.fromRGB(200, 0, 0)
+            end
+        else
+            highlight.FillColor = Color3.fromRGB(255, 255, 0)  -- Yellow for neutral
+            highlight.OutlineColor = Color3.fromRGB(200, 200, 0)
+        end
+        
+        ESPHighlights[player] = highlight
+        
+        -- Connection for ESP removal on death
+        humanoid.Died:Connect(function()
+            if highlight and highlight.Parent then
+                highlight:Destroy()
+                ESPHighlights[player] = nil
+            end
+        end)
+        
+        -- Connection for update on character removal
+        character.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                if highlight and highlight.Parent then
+                    highlight:Destroy()
+                    ESPHighlights[player] = nil
+                end
+            end
+        end)
+    end)
+    
+    -- Create ESP for existing character
+    if player.Character and ESPEnabled then
+        task.spawn(function()
+            local character = player.Character
+            local humanoid = character:WaitForChild("Humanoid")
+            
+            -- Create Highlight for ESP
+            local highlight = Instance.new("Highlight")
+            highlight.Name = player.Name .. "_ESP"
+            highlight.Adornee = character
+            highlight.Parent = ESPFolder
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            
+            -- Wallhack visibility settings
+            highlight.FillTransparency = 0.8
+            highlight.OutlineTransparency = 0
+            
+            -- Color settings
+            if player.Team and LocalPlayer.Team then
+                if player.Team == LocalPlayer.Team then
+                    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                    highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
+                else
+                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                    highlight.OutlineColor = Color3.fromRGB(200, 0, 0)
+                end
+            else
+                highlight.FillColor = Color3.fromRGB(255, 255, 0)
+                highlight.OutlineColor = Color3.fromRGB(200, 200, 0)
+            end
+            
+            ESPHighlights[player] = highlight
+            
+            -- Connection for ESP removal on death
+            humanoid.Died:Connect(function()
+                if highlight and highlight.Parent then
+                    highlight:Destroy()
+                    ESPHighlights[player] = nil
+                end
+            end)
+            
+            -- Connection for update on character removal
+            character.AncestryChanged:Connect(function(_, parent)
+                if not parent then
+                    if highlight and highlight.Parent then
+                        highlight:Destroy()
+                        ESPHighlights[player] = nil
+                    end
+                end
+            end)
+        end)
+    end
+    
+    ESPConnections[player] = connection
+end
+
+-- Enable ESP function
+local function EnableESP()
+    ESPEnabled = true
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            CreateHighlightESP(player)
+        end
+    end
+    
+    -- Connection for new players
+    ESPConnections.playerAdded = Players.PlayerAdded:Connect(function(player)
+        CreateHighlightESP(player)
+    end)
+    
+    -- Connection for leaving players
+    ESPConnections.playerRemoving = Players.PlayerRemoving:Connect(function(player)
+        if ESPHighlights[player] then
+            ESPHighlights[player]:Destroy()
+            ESPHighlights[player] = nil
+        end
+        if ESPConnections[player] then
+            ESPConnections[player]:Disconnect()
+            ESPConnections[player] = nil
+        end
+    end)
+end
+
+-- Disable ESP function
+local function DisableESP()
+    ESPEnabled = false
+    -- Clear all Highlights
+    for player, highlight in pairs(ESPHighlights) do
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end
+    ESPHighlights = {}
+    
+    -- Disconnect all connections
+    for _, connection in pairs(ESPConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    ESPConnections = {}
+end
+
+-- RGB animation for ESP
+local hue = 0
+local rgbConnection
+
+rgbConnection = RunService.RenderStepped:Connect(function()
+    if RGBMode and ESPEnabled then
+        hue = (hue + 0.02) % 1
+        local color = Color3.fromHSV(hue, 1, 1)
+        
+        for player, highlight in pairs(ESPHighlights) do
+            if highlight and highlight.Parent and player ~= LocalPlayer then
+                if player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
+                    -- Allies stay green
+                    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                    highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
+                else
+                    -- Enemies get RGB colors
+                    highlight.FillColor = color
+                    highlight.OutlineColor = color
+                end
+            end
+        end
+    end
+end)
+
+-- ==================== COMBAT TAB ====================
+Window:DrawCategory({
+	Name = "Combat"
+});
+
+local CombatTab = Window:DrawTab({
+	Name = "Combat",
+	Icon = "sword",
+	EnableScrolling = true
+});
+
+-- Left Combat section
+local CombatLeft = CombatTab:DrawSection({
+	Name = "Kill All",
+	Position = 'left'
+});
+
+-- Kill All button (single)
+CombatLeft:AddButton({
+	Name = "Kill All",
+	Callback = function()
+		KillAllPlayers()
+		Notifier.new({
+			Title = "Kill All",
+			Content = "All players eliminated (if server accepted)",
+			Duration = 3,
+			Icon = "rbxassetid://120245531583106"
+		});
+	end,
+});
+
+-- Kill All spam toggle
+local KillAllSpamToggle = CombatLeft:AddToggle({
+	Name = "Kill All Spam",
+	Flag = "KillAll_Spam",
+	Default = false,
+	Callback = function(state)
+		KillAllSpamEnabled = state
+		if state then
+			StartKillAllSpam()
+			Notifier.new({
+				Title = "Kill All Spam",
+				Content = "Enabled - constant killing of all players",
+				Duration = 3,
+				Icon = "rbxassetid://120245531583106"
+			});
+		else
+			StopKillAllSpam()
+			Notifier.new({
+				Title = "Kill All Spam",
+				Content = "Disabled",
+				Duration = 3,
+				Icon = "rbxassetid://120245531583106"
+			});
+		end
+	end,
+});
+
+-- Spam speed slider
+CombatLeft:AddSlider({
+	Name = "Spam Speed",
+	Min = 1,
+	Max = 10,
+	Default = 1,
+	Round = 0,
+	Flag = "Spam_Speed",
+	Callback = function(value)
+		SpamSpeed = value
+		-- Stop and restart spam with new speed
+		if KillAllSpamEnabled then
+			StopKillAllSpam()
+			task.wait(0.05)
+			StartKillAllSpam()
+			Notifier.new({
+				Title = "Spam Speed",
+				Content = "Set to: " .. value .. " ms",
+				Duration = 2,
+				Icon = "rbxassetid://120245531583106"
+			});
+		end
+	end
+});
+
+-- Right Combat section
+local CombatRight = CombatTab:DrawSection({
+	Name = "Information",
+	Position = 'right'
+});
+
+-- Speed information
+CombatRight:AddParagraph({
+	Title = "Spam Speeds",
+	Content = "• 1 = 1 ms (max speed)\n• 5 = 5 ms (medium)\n• 10 = 10 ms (slow)"
+});
+
+CombatRight:AddParagraph({
+	Title = "Kill All Functions",
+	Content = "• Kill All - one-time kill\n• Kill All Spam - constant killing\n• Speed - delay between kills"
+});
+
+-- ==================== VISUALS TAB ====================
+Window:DrawCategory({
+	Name = "Visuals"
+});
+
+local VisualsTab = Window:DrawTab({
+	Name = "Visuals",
+	Icon = "eye",
+	EnableScrolling = true
+});
+
+-- Left Visuals section
+local VisualsLeft = VisualsTab:DrawSection({
+	Name = "ESP",
+	Position = 'left'
+});
+
+-- ESP toggle
+local ESPToggle = VisualsLeft:AddToggle({
+	Name = "ESP",
+	Flag = "ESP_Enabled",
+	Default = false,
+	Callback = function(state)
+		if state then
+			EnableESP()
+		else
+			DisableESP()
+		end
+		Notifier.new({
+			Title = "ESP",
+			Content = state and "Enabled" or "Disabled",
+			Duration = 3,
+			Icon = "rbxassetid://120245531583106"
+		});
+	end,
+});
+
+-- RGB mode toggle
+VisualsLeft:AddToggle({
+	Name = "RGB Mode",
+	Flag = "RGB_Mode",
+	Default = false,
+	Callback = function(state)
+		RGBMode = state
+		Notifier.new({
+			Title = "RGB Mode",
+			Content = state and "Enabled" or "Disabled",
+			Duration = 3,
+			Icon = "rbxassetid://120245531583106"
+		});
+	end,
+});
+
+-- Fill transparency slider
+VisualsLeft:AddSlider({
+	Name = "Fill Transparency",
+	Min = 0,
+	Max = 1,
+	Default = 0.8,
+	Round = 1,
+	Flag = "ESP_Fill_Transparency",
+	Callback = function(value)
+		for _, highlight in pairs(ESPHighlights) do
+			if highlight and highlight.Parent then
+				highlight.FillTransparency = value
+			end
+		end
+	end
+});
+
+-- Outline transparency slider
+VisualsLeft:AddSlider({
+	Name = "Outline Transparency",
+	Min = 0,
+	Max = 1,
+	Default = 0,
+	Round = 1,
+	Flag = "ESP_Outline_Transparency",
+	Callback = function(value)
+		for _, highlight in pairs(ESPHighlights) do
+			if highlight and highlight.Parent then
+				highlight.OutlineTransparency = value
+			end
+		end
+	end
+});
+
+-- Refresh ESP button
+VisualsLeft:AddButton({
+	Name = "Refresh ESP",
+	Callback = function()
+		DisableESP()
+		if ESPToggle:GetState() then
+			EnableESP()
+		end
+		Notifier.new({
+			Title = "ESP",
+			Content = "ESP refreshed",
+			Duration = 3,
+			Icon = "rbxassetid://120245531583106"
+		});
+	end,
+});
+
+-- Right Visuals section
+local VisualsRight = VisualsTab:DrawSection({
+	Name = "Information",
+	Position = 'right'
+});
+
+-- ESP information
+VisualsRight:AddParagraph({
+	Title = "ESP Information",
+	Content = "• Green - allies\n• Red/RGB - enemies\n• Visible through walls\n• Outline around body"
+});
+
+VisualsRight:AddParagraph({
+	Title = "ESP Settings",
+	Content = "• ESP - toggle highlight\n• RGB Mode - color animation\n• Transparency - visibility settings"
+});
+
+-- ==================== SETTINGS TAB ====================
+Window:DrawCategory({
+	Name = "Settings"
+});
+
+local SettingsTab = Window:DrawTab({
+	Icon = "settings-3",
+	Name = "Settings",
+	Type = "Single",
+	EnableScrolling = true
+});
+
+local ThemesTab = Window:DrawTab({
+	Icon = "paintbrush",
+	Name = "Themes",
+	Type = "Single"
+});
+
+-- UI Settings section
+local UISettings = SettingsTab:DrawSection({
+	Name = "UI Settings",
+});
+
+UISettings:AddToggle({
+	Name = "Always Show Frame",
+	Default = false,
+	Callback = function(v)
+		Window.AlwayShowTab = v;
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Main Color",
+	Default = Lolsense.Colors.Highlight,
+	Callback = function(v)
+		Lolsense.Colors.Highlight = v;
+		Lolsense:RefreshCurrentColor();
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Toggle Color",
+	Default = Lolsense.Colors.Toggle,
+	Callback = function(v)
+		Lolsense.Colors.Toggle = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Dropdown Color",
+	Default = Lolsense.Colors.DropColor,
+	Callback = function(v)
+		Lolsense.Colors.DropColor = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Risky Color",
+	Default = Lolsense.Colors.Risky,
+	Callback = function(v)
+		Lolsense.Colors.Risky = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Hover Color",
+	Default = Lolsense.Colors.MouseEnter,
+	Callback = function(v)
+		Lolsense.Colors.MouseEnter = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Block Color",
+	Default = Lolsense.Colors.BlockColor,
+	Callback = function(v)
+		Lolsense.Colors.BlockColor = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Background Color",
+	Default = Lolsense.Colors.BGDBColor,
+	Callback = function(v)
+		Lolsense.Colors.BGDBColor = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Block Background Color",
+	Default = Lolsense.Colors.BlockBackground,
+	Callback = function(v)
+		Lolsense.Colors.BlockBackground = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddColorPicker({
+	Name = "Stroke Color",
+	Default = Lolsense.Colors.StrokeColor,
+	Callback = function(v)
+		Lolsense.Colors.StrokeColor = v;
+		Lolsense:RefreshCurrentColor(v);
+	end,
+});
+
+UISettings:AddButton({
+	Name = "Get Theme",
+	Callback = function()
+		print(Lolsense:GetTheme())
+		Notifier.new({
+			Title = "Notification",
+			Content = "Theme colors copied to clipboard",
+			Duration = 5,
+			Icon = "rbxassetid://120245531583106"
+		});
+	end,
+});
+
+-- Theme selection section
+ThemesTab:DrawSection({
+	Name = "UI Themes"
+}):AddDropdown({
+	Name = "Select Theme",
+	Default = "Default",
+	Values = {
+		"Default",
+		"Dark Green",
+		"Dark Blue",
+		"Purple Rose",
+		"Skeet"
+	},
+	Callback = function(v)
+		Lolsense:SetTheme(v)
+	end,
+});
+
+-- Control section
+local ControlSection = SettingsTab:DrawSection({
+	Name = "Script Control",
+});
+
+ControlSection:AddButton({
+	Name = "Stop All Functions",
+	Callback = function()
+		DisableESP()
+		StopKillAllSpam()
+		RGBMode = false
+		if ESPToggle then
+			ESPToggle:SetState(false)
+		end
+		if KillAllSpamToggle then
+			KillAllSpamToggle:SetState(false)
+		end
+		Notifier.new({
+			Title = "Cleanup",
+			Content = "All functions stopped",
+			Duration = 3,
+			Icon = "rbxassetid://120245531583106"
+		});
+	end,
+});
+
+ControlSection:AddParagraph({
+	Title = "Script Information",
+	Content = "Lolsense v2.0\n• Kill All functions\n• ESP with RGB mode\n• UI customization\n• Toggle UI: Insert"
+});
+
+-- Create config tab
+local ConfigUI = Window:DrawConfig({
+	Name = "Config",
+	Icon = "folder",
+	Config = ConfigManager
+});
+
+ConfigUI:Init();
+
+-- Auto cleanup on game exit
+LocalPlayer.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Started then
+        DisableESP()
+        StopKillAllSpam()
+        if rgbConnection then
+            rgbConnection:Disconnect()
+        end
+    end
+end);
